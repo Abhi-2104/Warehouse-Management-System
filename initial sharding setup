@@ -1,7 +1,11 @@
+# Step 1: Set up a sharded cluster with 3 shards
+
+# 1.1 Start the config servers (3-member replica set)
 mongod --configsvr --replSet configReplSet --port 27019 --dbpath /data/configdb1
 mongod --configsvr --replSet configReplSet --port 27020 --dbpath /data/configdb2
 mongod --configsvr --replSet configReplSet --port 27021 --dbpath /data/configdb3
 
+# 1.2 Initiate the config server replica set
 mongosh --port 27019
 rs.initiate({
    _id: "configReplSet",
@@ -13,10 +17,12 @@ rs.initiate({
    ]
 })
 
+# 1.3 Start the 3 shard servers
 mongod --shardsvr --replSet shard1RepSet --port 27022 --dbpath /data/shard1
 mongod --shardsvr --replSet shard2RepSet --port 27023 --dbpath /data/shard2
 mongod --shardsvr --replSet shard3RepSet --port 27024 --dbpath /data/shard3
 
+# 1.4 Initiate each shard replica set
 mongosh --port 27022
 rs.initiate({
    _id: "shard1RepSet",
@@ -41,19 +47,28 @@ rs.initiate({
    ]
 })
 
+# 1.5 Start the mongos router
 mongos --configdb configReplSet/localhost:27019,localhost:27020,localhost:27021 --port 27017
 
+# Step 2: Add shards to the cluster
 mongosh --port 27017
 sh.addShard("shard1RepSet/localhost:27022")
 sh.addShard("shard2RepSet/localhost:27023")
 sh.addShard("shard3RepSet/localhost:27024")
 
+# Step 3: Enable sharding for the existing database and collections
 sh.enableSharding("warehouse")
 
+# Shard the products collection using a hashed shard key on category
 sh.shardCollection("warehouse.products", { "category": "hashed" })
 
+# Shard the warehouseOperations collection using a hashed shard key on timestamp
 sh.shardCollection("warehouse.warehouseOperations", { "timestamp": "hashed" })
 
+# Note: We're not sharding the users collection as it's typically smaller and doesn't require sharding
 
+# Step 4: Verify the sharding status
 sh.status()
 
+# Step 5: Update your MongoDB connection string in your Node.js application
+# mongodb://localhost:27017/warehouse
