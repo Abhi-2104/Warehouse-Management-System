@@ -1,0 +1,59 @@
+mongod --configsvr --replSet configReplSet --port 27019 --dbpath /data/configdb1
+mongod --configsvr --replSet configReplSet --port 27020 --dbpath /data/configdb2
+mongod --configsvr --replSet configReplSet --port 27021 --dbpath /data/configdb3
+
+mongosh --port 27019
+rs.initiate({
+   _id: "configReplSet",
+   configsvr: true,
+   members: [
+      { _id: 0, host: "localhost:27019" },
+      { _id: 1, host: "localhost:27020" },
+      { _id: 2, host: "localhost:27021" }
+   ]
+})
+
+mongod --shardsvr --replSet shard1RepSet --port 27022 --dbpath /data/shard1
+mongod --shardsvr --replSet shard2RepSet --port 27023 --dbpath /data/shard2
+mongod --shardsvr --replSet shard3RepSet --port 27024 --dbpath /data/shard3
+
+mongosh --port 27022
+rs.initiate({
+   _id: "shard1RepSet",
+   members: [
+      { _id: 0, host: "localhost:27022" }
+   ]
+})
+
+mongosh --port 27023
+rs.initiate({
+   _id: "shard2RepSet",
+   members: [
+      { _id: 0, host: "localhost:27023" }
+   ]
+})
+
+mongosh --port 27024
+rs.initiate({
+   _id: "shard3RepSet",
+   members: [
+      { _id: 0, host: "localhost:27024" }
+   ]
+})
+
+mongos --configdb configReplSet/localhost:27019,localhost:27020,localhost:27021 --port 27017
+
+mongosh --port 27017
+sh.addShard("shard1RepSet/localhost:27022")
+sh.addShard("shard2RepSet/localhost:27023")
+sh.addShard("shard3RepSet/localhost:27024")
+
+sh.enableSharding("warehouse")
+
+sh.shardCollection("warehouse.products", { "category": "hashed" })
+
+sh.shardCollection("warehouse.warehouseOperations", { "timestamp": "hashed" })
+
+
+sh.status()
+
